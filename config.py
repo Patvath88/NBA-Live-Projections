@@ -37,11 +37,11 @@ def render_navbar(current):
     """Dynamic navbar using relative routing instead of raw file paths."""
     pages = {
         "🏠 Home": "Home",
-        "🧠 Research": "pages/Research_and_Projections",
-        "📅 Upcoming": "pages/Upcoming_Projections",
-        "🟢 Live": "pages/Live_Projections",
-        "🏁 Completed": "pages/Completed_Projections",
-        "⭐ Favorites": "pages/Favorite_Players",
+        "🧠 Research": "pages/Research_and_Projections.py",
+        "📅 Upcoming": "pages/Upcoming_Projections.py",
+        "🟢 Live": "pages/Live_Projections.py",
+        "🏁 Completed": "pages/Completed_Projections.py",
+        "⭐ Favorites": "pages/Favorite_Players.py",
     }
 
     cols = st.columns(len(pages))
