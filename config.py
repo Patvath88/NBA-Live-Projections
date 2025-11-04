@@ -37,7 +37,7 @@ def render_navbar(current):
     """Dynamic navbar that detects which pages exist."""
     pages = {
         "🏠 Home": "./Home.py",
-        "🧠 Research": "pages/Research_and_Predictions.py",
+        "🧠 Research": "pages/Research_and_Projections.py",
         "📅 Upcoming": "pages/Upcoming_Projections.py",
         "🟢 Live": "pages/Live_Projections.py",
         "🏁 Completed": "pages/Completed_Projections.py",
