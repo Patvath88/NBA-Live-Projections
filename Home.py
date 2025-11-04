@@ -5,7 +5,18 @@ import datetime as dt
 import os
 import difflib
 
+import streamlit as st
+from config import init_page, render_navbar
+
+# ✅ Initialize first
 init_page("🏠 NBA AI Dashboard")
+
+# ✅ Then render navbar
+render_navbar()
+
+# Continue with your logic...
+# (no other st.set_page_config() calls below this line!)
+
 
 # ---------------------- STYLES ----------------------
 st.markdown("""
