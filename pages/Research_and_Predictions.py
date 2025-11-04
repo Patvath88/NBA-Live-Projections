@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 from nba_api.stats.endpoints import playergamelog
@@ -6,29 +5,34 @@ from nba_api.stats.static import players
 from config import init_page, render_navbar
 
 init_page("🧠 Research & Predictions")
-render_navbar("Research_and_Predictions")
+render_navbar("Research")
 
-st.title("🧠 Research & Player Projections")
+st.title("🧠 Player Research & AI Predictions")
 
-player_name = st.text_input("Enter a player name:", "LeBron James")
-season = "2025-26"
+nba_players = players.get_active_players()
+player_names = [p["full_name"] for p in nba_players]
+selected_player = st.selectbox("Select a Player", player_names)
 
-if player_name:
-    player = players.find_players_by_full_name(player_name)
-    if not player:
-        st.error("Player not found.")
-    else:
-        pid = player[0]["id"]
-        try:
-            gamelog = playergamelog.PlayerGameLog(player_id=pid, season=season)
-            df = gamelog.get_data_frames()[0]
-            st.write(f"Recent {len(df)} games for {player_name}")
-            st.dataframe(df[["GAME_DATE", "PTS", "REB", "AST", "FG_PCT"]])
-        except Exception as e:
-            st.warning(f"No data for 2025–26. Trying 2024–25 and preseason...")
-            try:
-                gamelog = playergamelog.PlayerGameLog(player_id=pid, season="2024-25")
-                df = gamelog.get_data_frames()[0]
-                st.dataframe(df[["GAME_DATE", "PTS", "REB", "AST", "FG_PCT"]])
-            except Exception as e2:
-                st.error(f"Could not retrieve data: {e2}")
+player_info = next((p for p in nba_players if p["full_name"] == selected_player), None)
+pid = player_info["id"]
+
+def fetch_games(pid, season):
+    try:
+        gl = playergamelog.PlayerGameLog(player_id=pid, season=season).get_data_frames()[0]
+        return gl
+    except:
+        return pd.DataFrame()
+
+current = fetch_games(pid, "2025-26")
+preseason = fetch_games(pid, "2025-26 Preseason")
+previous = fetch_games(pid, "2024-25")
+
+df = pd.concat([current, preseason, previous], ignore_index=True)
+if df.empty:
+    st.warning("No data available yet for this player.")
+else:
+    st.write(f"Total games loaded: {len(df)}")
+    st.dataframe(df.head())
+
+    st.markdown("### Recent Performance (Last 5 Games)")
+    st.dataframe(df.head(5)[["GAME_DATE", "MATCHUP", "PTS", "REB", "AST", "FG3M", "STL", "BLK"]])
