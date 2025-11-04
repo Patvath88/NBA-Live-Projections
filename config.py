@@ -32,15 +32,16 @@ def apply_theme():
 def render_navbar(current):
     pages = {
         "🏠 Home": "Home",
-        "🧠 Research": "Research_and_Predictions",
-        "📅 Upcoming": "Upcoming_Projections",
-        "🟢 Live": "Live_Projections",
-        "🏁 Completed": "Completed_Projections",
-        "⭐ Favorites": "Favorite_Players",
+        "🧠 Research": "pages/Research_and_Predictions.py",
+        "📅 Upcoming": "pages/Upcoming_Projections.py",
+        "🟢 Live": "pages/Live_Projections.py",
+        "🏁 Completed": "pages/Completed_Projections.py",
+        "⭐ Favorites": "pages/Favorite_Players.py"
     }
     cols = st.columns(len(pages))
-    for i, (label, page) in enumerate(pages.items()):
-        cls = "active-link" if page == current else "nav-link"
+    for i, (label, path) in enumerate(pages.items()):
+        is_active = current.lower() in label.lower()
+        link_class = "active-link" if is_active else "nav-link"
         with cols[i]:
-            st.page_link(f"pages/{page}.py", label=label, use_container_width=True)
+            st.page_link(path, label=label, use_container_width=True)
     st.markdown("---")
