@@ -109,25 +109,40 @@ def get_upcoming_games(days=3):
     except Exception:
         return []
 
+@st.cache_data(ttl=300)
 def get_injuries():
-    """Fetch active NBA injuries from ESPN API."""
+    """Fetch NBA injuries from ESPN API with full fallback parsing."""
     try:
         url = "https://site.web.api.espn.com/apis/site/v2/sports/basketball/nba/injuries"
         r = requests.get(url, timeout=10)
-        data = r.json().get("injuries", [])
+        if r.status_code != 200:
+            return []
+        data = r.json()
+        teams = data.get("injuries", [])
         injuries = []
-        for team in data:
-            team_name = team.get("team", {}).get("abbreviation", "")
-            for player in team.get("injuries", []):
-                injuries.append({
-                    "team": team_name,
-                    "player": player.get("athlete", {}).get("displayName", ""),
-                    "status": player.get("status", ""),
-                    "desc": player.get("details", "")
-                })
+        for team in teams:
+            team_code = team.get("team", {}).get("abbreviation", "")
+            for p in team.get("injuries", []):
+                player = p.get("athlete", {}).get("displayName", "")
+                status = p.get("status", "") or p.get("type", "")
+                desc = (
+                    p.get("shortComment")
+                    or p.get("longComment")
+                    or p.get("details")
+                    or ""
+                )
+                if player and team_code:
+                    injuries.append({
+                        "team": team_code,
+                        "player": player,
+                        "status": status,
+                        "desc": desc.strip()
+                    })
         return injuries
-    except Exception:
+    except Exception as e:
+        st.warning(f"Injury feed error: {e}")
         return []
+
 
 # ---------------------- TODAY'S GAMES ----------------------
 today_str = dt.datetime.now().strftime("%A, %B %d, %Y")
