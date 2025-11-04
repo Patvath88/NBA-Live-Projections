@@ -5,7 +5,7 @@ import datetime as dt
 import os
 import difflib
 
-st.set_page_config(page_title="🏠 NBA AI Dashboard", layout="wide")
+init_page("🏠 NBA AI Dashboard")
 
 # ---------------------- STYLES ----------------------
 st.markdown("""
