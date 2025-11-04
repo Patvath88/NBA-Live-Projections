@@ -34,21 +34,23 @@ def apply_theme():
     """, unsafe_allow_html=True)
 
 def render_navbar(current):
-    """Dynamic navbar that detects which pages exist."""
+    """Dynamic navbar using relative routing instead of raw file paths."""
     pages = {
-        "🏠 Home": "./Home.py",
-        "🧠 Research": "pages/Research_and_Projections.py",
-        "📅 Upcoming": "pages/Upcoming_Projections.py",
-        "🟢 Live": "pages/Live_Projections.py",
-        "🏁 Completed": "pages/Completed_Projections.py",
-        "⭐ Favorites": "pages/Favorite_Players.py",
+        "🏠 Home": "Home",
+        "🧠 Research": "pages/Research_and_Projections",
+        "📅 Upcoming": "pages/Upcoming_Projections",
+        "🟢 Live": "pages/Live_Projections",
+        "🏁 Completed": "pages/Completed_Projections",
+        "⭐ Favorites": "pages/Favorite_Players",
     }
 
     cols = st.columns(len(pages))
-    for i, (label, path) in enumerate(pages.items()):
-        if not os.path.exists(path):
-            continue
+    for i, (label, route) in enumerate(pages.items()):
         is_active = current.lower() in label.lower()
         with cols[i]:
-            st.page_link(path, label=label, use_container_width=True)
+            # Streamlit uses internal routing like 'pages/Filename' (no .py)
+            try:
+                st.page_link(route, label=label, use_container_width=True)
+            except st.errors.StreamlitPageNotFoundError:
+                st.write(f"⚠️ Missing: {route}.py")
     st.markdown("---")
