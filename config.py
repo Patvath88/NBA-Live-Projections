@@ -2,7 +2,8 @@ import streamlit as st
 import os
 
 def init_page(title, icon="🏀"):
-    st.set_page_config(page_title=title, page_icon=icon, layout="wide")
+    if not st.runtime.exists():  # prevent multiple calls
+        st.set_page_config(page_title=title, page_icon=icon, layout="wide")
     apply_theme()
 
 def apply_theme():
@@ -32,9 +33,8 @@ def apply_theme():
 
 def render_navbar(current):
     """
-    Universal navigation bar that automatically skips missing files.
+    Universal navigation bar that only displays pages that exist.
     """
-
     pages = {
         "🏠 Home": "./Home.py",
         "🧠 Research": "pages/Research_and_Predictions.py",
@@ -46,8 +46,7 @@ def render_navbar(current):
 
     cols = st.columns(len(pages))
     for i, (label, path) in enumerate(pages.items()):
-        # 🔍 Skip links that don't exist
-        if not os.path.exists(path):
+        if not os.path.exists(path):  # skip missing pages
             continue
         is_active = current.lower() in label.lower()
         link_class = "active-link" if is_active else "nav-link"
