@@ -25,21 +25,27 @@ h1, h2, h3 { color: #00FFFF; }
 """, unsafe_allow_html=True)
 
 # ---------------------- NAVIGATION ----------------------
+# ---------------------- NAVIGATION ----------------------
 st.title("🏀 NBA AI Projection Dashboard")
 
 col1, col2, col3, col4, col5 = st.columns(5)
-with col1:
-    st.page_link("pages/Research_and_Predictions.py", label="🧠 Research", icon="🧠")
-with col2:
-    st.page_link("pages/Upcoming_Projections.py", label="📅 Upcoming", icon="📅")
-with col3:
-    st.page_link("pages/Live_Projections.py", label="🟢 Live", icon="🟢")
-with col4:
-    st.page_link("pages/Completed_Projections.py", label="🏁 Completed", icon="🏁")
-with col5:
-    st.page_link("pages/Favorite_Players.py", label="⭐ Favorites", icon="⭐")
-
-st.markdown("---")
+pages = {
+    "🧠 Research": "Research_and_Predictions",
+    "📅 Upcoming": "Upcoming_Projections",
+    "🟢 Live": "Live_Projections",
+    "🏁 Completed": "Completed_Projections",
+    "⭐ Favorites": "Favorite_Players"
+}
+for i, (label, page) in enumerate(pages.items()):
+    with [col1, col2, col3, col4, col5][i]:
+        st.markdown(
+            f"<a href='/pages/{page}' target='_self' "
+            f"style='text-decoration:none; color:white; "
+            f"display:block; text-align:center; border:2px solid #E50914; "
+            f"padding:8px; border-radius:10px; background-color:#111; "
+            f"box-shadow:0px 0px 10px #E50914;'>{label}</a>",
+            unsafe_allow_html=True
+        )
 
 # ---------------------- HELPERS ----------------------
 def get_today_schedule(date):
