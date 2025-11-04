@@ -61,12 +61,10 @@ st.markdown("---")
 
 # ---------------------- HELPERS ----------------------
 @st.cache_data(ttl=60)
-def get_games_for_date(date_offset=0):
-    """Fetch NBA games from ESPN API for today or tomorrow."""
+def get_today_games():
+    """Fetch today's NBA games from ESPN API."""
     try:
-        base_url = "https://site.web.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard"
-        target_date = (dt.datetime.now() + dt.timedelta(days=date_offset)).strftime("%Y%m%d")
-        url = f"{base_url}?dates={target_date}"
+        url = "https://site.web.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard"
         r = requests.get(url, timeout=10)
         games = r.json().get("events", [])
         results = []
@@ -89,10 +87,12 @@ def get_games_for_date(date_offset=0):
 
 @st.cache_data(ttl=600)
 def get_injuries():
-    """Fetch NBA injuries from ESPN API and normalize."""
+    """Fetch NBA injuries from ESPN API with fallback parsing."""
     try:
         url = "https://site.web.api.espn.com/apis/site/v2/sports/basketball/nba/injuries"
         r = requests.get(url, timeout=10)
+        if r.status_code != 200:
+            return pd.DataFrame()
         data = r.json().get("injuries", [])
         injuries = []
         for team in data:
@@ -112,7 +112,7 @@ def get_injuries():
 today_str = dt.datetime.now().strftime("%A, %B %d, %Y")
 st.header(f"📅 Today's NBA Games — {today_str}")
 
-today_games = get_games_for_date(0)
+today_games = get_today_games()
 if not today_games:
     st.info("No games found or ESPN feed unavailable.")
 else:
@@ -130,46 +130,29 @@ else:
             st.markdown(f"<div class='card'>{g['home']}</div>", unsafe_allow_html=True)
         st.markdown("---")
 
-# ---------------------- TOMORROW'S GAMES ----------------------
-st.header("📆 Tomorrow's NBA Games")
-
-tomorrow_games = get_games_for_date(1)
-if not tomorrow_games:
-    st.info("No games scheduled for tomorrow.")
-else:
-    for g in tomorrow_games:
-        col1, col2, col3 = st.columns([1, 3, 1])
-        with col1:
-            if g["away_logo"]:
-                st.image(g["away_logo"], width=60)
-            st.markdown(f"<div class='card'>{g['away']}</div>", unsafe_allow_html=True)
-        with col2:
-            st.markdown(f"### 🕓 {g['time']} — {g['status']}")
-        with col3:
-            if g["home_logo"]:
-                st.image(g["home_logo"], width=60)
-            st.markdown(f"<div class='card'>{g['home']}</div>", unsafe_allow_html=True)
-        st.markdown("---")
-
-# ---------------------- INJURY REPORT ----------------------
-st.header("💉 Current NBA Injury Report")
+# ---------------------- INJURIES — TODAY'S TEAMS ONLY ----------------------
+st.header("💉 Injury Report — Teams Playing Today")
 
 inj_df = get_injuries()
-teams = sorted(inj_df["team"].unique()) if not inj_df.empty else []
-
-if not teams:
-    st.info("No injury data available from ESPN.")
+if inj_df.empty:
+    st.info("No injury data available.")
 else:
-    team_choice = st.selectbox("Select a team to view injuries", teams)
-    team_inj = inj_df[inj_df["team"] == team_choice]
-    if team_inj.empty:
-        st.info(f"No current injuries reported for {team_choice}.")
+    today_teams = {g["home"] for g in today_games} | {g["away"] for g in today_games}
+    df_today = inj_df[inj_df["team"].isin(today_teams)]
+    if df_today.empty:
+        st.info("No reported injuries for today's matchups.")
     else:
-        for _, row in team_inj.iterrows():
-            st.markdown(
-                f"**{row['player']}** — {row['status']}<br><small>{row['desc']}</small>",
-                unsafe_allow_html=True
-            )
+        for team in sorted(today_teams):
+            team_inj = df_today[df_today["team"] == team]
+            if team_inj.empty:
+                continue
+            st.markdown(f"### {team}")
+            for _, row in team_inj.iterrows():
+                st.markdown(
+                    f"**{row['player']}** — {row['status']}<br><small>{row['desc']}</small>",
+                    unsafe_allow_html=True
+                )
+        st.caption("_Updated every 10 minutes_")
 
 # ---------------------- MODEL SUMMARY ----------------------
 st.markdown("---")
@@ -194,3 +177,7 @@ if os.path.exists(path):
         st.info("Projection file missing 'status' column.")
 else:
     st.info("No projections saved yet.")
+
+# ---------------------- FOOTER ----------------------
+st.markdown("---")
+st.caption(f"🕒 Data last updated: {dt.datetime.now().strftime('%I:%M %p')}")
