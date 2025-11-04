@@ -2,8 +2,10 @@ import streamlit as st
 import os
 
 def init_page(title, icon="🏀"):
-    if not st.runtime.exists():  # prevent multiple calls
+    """Initialize Streamlit page safely (only once)."""
+    if not getattr(st, "_page_configured", False):
         st.set_page_config(page_title=title, page_icon=icon, layout="wide")
+        st._page_configured = True
     apply_theme()
 
 def apply_theme():
@@ -32,9 +34,7 @@ def apply_theme():
     """, unsafe_allow_html=True)
 
 def render_navbar(current):
-    """
-    Universal navigation bar that only displays pages that exist.
-    """
+    """Dynamic navbar that detects which pages exist."""
     pages = {
         "🏠 Home": "./Home.py",
         "🧠 Research": "pages/Research_and_Predictions.py",
@@ -46,10 +46,9 @@ def render_navbar(current):
 
     cols = st.columns(len(pages))
     for i, (label, path) in enumerate(pages.items()):
-        if not os.path.exists(path):  # skip missing pages
+        if not os.path.exists(path):
             continue
         is_active = current.lower() in label.lower()
-        link_class = "active-link" if is_active else "nav-link"
         with cols[i]:
             st.page_link(path, label=label, use_container_width=True)
     st.markdown("---")
