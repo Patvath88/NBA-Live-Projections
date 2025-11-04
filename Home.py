@@ -3,12 +3,11 @@ import pandas as pd
 import requests
 from config import init_page, render_navbar
 
-# Initialize
+import streamlit as st
+from config import init_page, render_navbar
+
 init_page("🏠 NBA AI Dashboard")
 render_navbar("Home")
-
-st.title("🏀 NBA Live Projections Dashboard")
-st.markdown("### Today's Games and Injury Updates")
 
 # ---- Fetch Today's Games ----
 def get_today_games():
