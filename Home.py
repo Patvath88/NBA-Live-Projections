@@ -2,25 +2,14 @@ import streamlit as st
 import requests
 import pandas as pd
 import datetime as dt
-from io import BytesIO
-from PIL import Image
 
+# ---------------------- PAGE CONFIG ----------------------
 st.set_page_config(page_title="🏠 NBA AI Dashboard", layout="wide")
 
 # ---------------------- STYLES ----------------------
 st.markdown("""
 <style>
 body { background-color: black; color: white; }
-.card {
-    border: 2px solid #E50914;
-    border-radius: 10px;
-    padding: 12px;
-    background-color: #111;
-    box-shadow: 0px 0px 10px #E50914;
-    text-align: center;
-    color: white;
-}
-h1, h2, h3 { color: #00FFFF; }
 a.nav-link {
     text-decoration:none;
     color:white;
@@ -31,9 +20,19 @@ a.nav-link {
     border-radius:10px;
     background-color:#111;
     box-shadow:0px 0px 10px #E50914;
+    font-weight:bold;
 }
 a.nav-link:hover {
     background-color:#E50914;
+}
+.card {
+    border: 2px solid #E50914;
+    border-radius: 10px;
+    padding: 12px;
+    background-color: #111;
+    box-shadow: 0px 0px 10px #E50914;
+    text-align: center;
+    color: white;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -41,6 +40,7 @@ a.nav-link:hover {
 # ---------------------- NAVIGATION ----------------------
 st.title("🏀 NBA AI Projection Dashboard")
 
+# Clean Streamlit-compatible internal routing (no HTML hrefs)
 col1, col2, col3, col4, col5 = st.columns(5)
 pages = {
     "🧠 Research": "Research_and_Predictions",
@@ -49,142 +49,155 @@ pages = {
     "🏁 Completed": "Completed_Projections",
     "⭐ Favorites": "Favorite_Players"
 }
+
 for i, (label, page) in enumerate(pages.items()):
     with [col1, col2, col3, col4, col5][i]:
-        st.markdown(f"<a class='nav-link' href='/pages/{page}' target='_self'>{label}</a>", unsafe_allow_html=True)
+        if st.button(label):
+            st.switch_page(f"pages/{page}.py")
 
 st.markdown("---")
 
-# ---------------------- HELPERS ----------------------
-def get_team_logo(team_code):
-    return f"https://cdn.nba.com/logos/nba/{team_code}_logo.svg"
-
-@st.cache_data(ttl=60)
-def get_today_schedule(date=None):
-    """Fetch today's scoreboard data."""
+# ---------------------- DATA HELPERS ----------------------
+def get_today_games():
+    """Fetch today's NBA games from ESPN API."""
     try:
-        url = "https://cdn.nba.com/static/json/liveData/scoreboard/todaysScoreboard.json"
+        url = "https://site.web.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard"
         r = requests.get(url, timeout=10)
-        if r.status_code != 200:
-            return []
-        games = r.json().get("scoreboard", {}).get("games", [])
-        return games
+        data = r.json()
+        games = data.get("events", [])
+        today_games = []
+        for g in games:
+            comp = g.get("competitions", [{}])[0]
+            teams = comp.get("competitors", [])
+            home = next((t for t in teams if t.get("homeAway") == "home"), {})
+            away = next((t for t in teams if t.get("homeAway") == "away"), {})
+            game_data = {
+                "home": home.get("team", {}).get("abbreviation", ""),
+                "away": away.get("team", {}).get("abbreviation", ""),
+                "home_logo": home.get("team", {}).get("logo", ""),
+                "away_logo": away.get("team", {}).get("logo", ""),
+                "status": g.get("status", {}).get("type", {}).get("description", ""),
+                "time": g.get("status", {}).get("type", {}).get("shortDetail", ""),
+            }
+            today_games.append(game_data)
+        return today_games
     except Exception:
         return []
 
-@st.cache_data(ttl=3600)
-def get_injuries():
-    """Fetch and normalize injury report."""
+def get_upcoming_games(days=3):
+    """Fetch next few days' NBA games."""
     try:
-        url = "https://cdn.nba.com/static/json/injury/injuryReport.json"
+        url = f"https://site.web.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard"
         r = requests.get(url, timeout=10)
-        if r.status_code != 200:
-            return []
-        data = r.json()
-        teams = data.get("teams", [])
+        data = r.json().get("events", [])
+        upcoming = []
+        for g in data:
+            comp = g.get("competitions", [{}])[0]
+            date = comp.get("date", "")
+            game_date = dt.datetime.fromisoformat(date.replace("Z", "+00:00")).date()
+            if game_date > dt.datetime.now().date() and game_date <= (dt.datetime.now().date() + dt.timedelta(days=days)):
+                teams = comp.get("competitors", [])
+                home = next((t for t in teams if t.get("homeAway") == "home"), {})
+                away = next((t for t in teams if t.get("homeAway") == "away"), {})
+                upcoming.append({
+                    "date": game_date,
+                    "home": home.get("team", {}).get("abbreviation", ""),
+                    "away": away.get("team", {}).get("abbreviation", ""),
+                    "time": g.get("status", {}).get("type", {}).get("shortDetail", "")
+                })
+        return upcoming
+    except Exception:
+        return []
+
+def get_injuries():
+    """Fetch active NBA injuries from ESPN API."""
+    try:
+        url = "https://site.web.api.espn.com/apis/site/v2/sports/basketball/nba/injuries"
+        r = requests.get(url, timeout=10)
+        data = r.json().get("injuries", [])
         injuries = []
-        for team in teams:
-            tcode = team.get("teamTricode", "")
-            for p in team.get("players", []):
+        for team in data:
+            team_name = team.get("team", {}).get("abbreviation", "")
+            for player in team.get("injuries", []):
                 injuries.append({
-                    "teamTricode": tcode,
-                    "playerName": p.get("firstName", "") + " " + p.get("lastName", ""),
-                    "status": p.get("injuryStatus", ""),
-                    "desc": p.get("injuryDesc", "")
+                    "team": team_name,
+                    "player": player.get("athlete", {}).get("displayName", ""),
+                    "status": player.get("status", ""),
+                    "desc": player.get("details", "")
                 })
         return injuries
     except Exception:
         return []
 
 # ---------------------- TODAY'S GAMES ----------------------
-today_str = dt.datetime.now().strftime("%Y-%m-%d")
-games = get_today_schedule(today_str)
-
+today_str = dt.datetime.now().strftime("%A, %B %d, %Y")
 st.header(f"📅 Today's NBA Games — {today_str}")
+
+games = get_today_games()
 if not games:
-    st.info("No games scheduled or feed unavailable.")
+    st.info("No games found or ESPN feed unavailable.")
 else:
     for g in games:
-        home, away = g["homeTeam"], g["awayTeam"]
-        status = g.get("gameStatusText", "TBD")
-        home_logo = get_team_logo(home["teamTricode"])
-        away_logo = get_team_logo(away["teamTricode"])
         col1, col2, col3 = st.columns([1, 3, 1])
         with col1:
-            st.image(away_logo, width=60)
-            st.markdown(f"<div class='card'>{away['teamTricode']}</div>", unsafe_allow_html=True)
+            if g["away_logo"]:
+                st.image(g["away_logo"], width=60)
+            st.markdown(f"<div class='card'>{g['away']}</div>", unsafe_allow_html=True)
         with col2:
-            st.markdown(f"### 🕓 {g['gameTimeEastern']} — {status}")
-            if status.lower() not in ["upcoming", "scheduled"]:
-                st.markdown(f"**{away['score']} - {home['score']}**")
+            st.markdown(f"### 🕓 {g['time']} — {g['status']}")
         with col3:
-            st.image(home_logo, width=60)
-            st.markdown(f"<div class='card'>{home['teamTricode']}</div>", unsafe_allow_html=True)
+            if g["home_logo"]:
+                st.image(g["home_logo"], width=60)
+            st.markdown(f"<div class='card'>{g['home']}</div>", unsafe_allow_html=True)
         st.markdown("---")
 
-# ---------------------- NEXT 3 DAYS ----------------------
-with st.expander("📆 Next 3 Days Schedule"):
-    for i in range(1, 4):
-        date_check = (dt.datetime.now() + dt.timedelta(days=i)).strftime("%Y-%m-%d")
-        url = f"https://cdn.nba.com/static/json/liveData/scoreboard/todaysScoreboard_{date_check}.json"
-        r = requests.get(url, timeout=10)
-        if r.status_code != 200:
-            st.caption(f"{date_check}: feed unavailable")
-            continue
-        games = r.json().get("scoreboard", {}).get("games", [])
-        if not games:
-            st.caption(f"{date_check}: no games")
-            continue
-        st.subheader(f"{date_check}")
-        for g in games:
-            st.markdown(f"🏀 **{g['awayTeam']['teamTricode']} @ {g['homeTeam']['teamTricode']}** — {g['gameTimeEastern']}")
+# ---------------------- UPCOMING ----------------------
+with st.expander("📆 View Next 3 Days Schedule"):
+    upcoming = get_upcoming_games(3)
+    if not upcoming:
+        st.caption("No upcoming games found.")
+    else:
+        for g in upcoming:
+            st.markdown(f"🏀 **{g['away']} @ {g['home']}** — {g['time']} ({g['date']})")
 
 # ---------------------- INJURY REPORT ----------------------
 st.header("💉 Injury Report — Teams Playing Today")
-injuries = get_injuries()
 
+injuries = get_injuries()
 if not injuries:
-    st.info("No injuries or feed unavailable.")
+    st.info("No injury data available.")
 else:
-    today_teams = {g["homeTeam"]["teamTricode"] for g in get_today_schedule()} | {
-        g["awayTeam"]["teamTricode"] for g in get_today_schedule()
-    }
     df = pd.DataFrame(injuries)
-    df_today = df[df["teamTricode"].isin(today_teams)]
+    today_teams = {g["home"] for g in games} | {g["away"] for g in games}
+    df_today = df[df["team"].isin(today_teams)]
     if df_today.empty:
         st.info("No reported injuries for today's teams.")
     else:
         for team in sorted(today_teams):
-            team_inj = df_today[df_today["teamTricode"] == team]
+            team_inj = df_today[df_today["team"] == team]
             if team_inj.empty:
                 continue
             st.markdown(f"### {team}")
             for _, row in team_inj.iterrows():
                 st.markdown(
-                    f"**{row['playerName']}** — {row['status']}<br><small>{row['desc']}</small>",
+                    f"**{row['player']}** — {row['status']}<br><small>{row['desc']}</small>",
                     unsafe_allow_html=True
                 )
 
-with st.expander("💉 View Injuries Affecting Next 3 Days"):
-    for i in range(1, 4):
-        date_check = (dt.datetime.now() + dt.timedelta(days=i)).strftime("%Y-%m-%d")
-        url = f"https://cdn.nba.com/static/json/liveData/scoreboard/todaysScoreboard_{date_check}.json"
-        r = requests.get(url, timeout=10)
-        if r.status_code != 200:
-            continue
-        games = r.json().get("scoreboard", {}).get("games", [])
-        next_teams = {g["homeTeam"]["teamTricode"] for g in games} | {g["awayTeam"]["teamTricode"] for g in games}
-        df_next = df[df["teamTricode"].isin(next_teams)]
-        if df_next.empty:
-            continue
-        st.subheader(f"{date_check}")
-        for team in sorted(next_teams):
-            team_inj = df_next[df_next["teamTricode"] == team]
+# ---------------------- FUTURE INJURIES ----------------------
+with st.expander("💉 View Injuries for Next 3 Days"):
+    if not injuries:
+        st.caption("No injuries listed.")
+    else:
+        upcoming_teams = {g["home"] for g in upcoming} | {g["away"] for g in upcoming}
+        df_next = df[df["team"].isin(upcoming_teams)]
+        for team in sorted(upcoming_teams):
+            team_inj = df_next[df_next["team"] == team]
             if team_inj.empty:
                 continue
             st.markdown(f"#### {team}")
             for _, row in team_inj.iterrows():
                 st.markdown(
-                    f"**{row['playerName']}** — {row['status']}<br><small>{row['desc']}</small>",
+                    f"**{row['player']}** — {row['status']}<br><small>{row['desc']}</small>",
                     unsafe_allow_html=True
                 )
