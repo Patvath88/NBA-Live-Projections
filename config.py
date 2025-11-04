@@ -30,14 +30,19 @@ def apply_theme():
     """, unsafe_allow_html=True)
 
 def render_navbar(current):
+    """
+    Universal navigation bar.
+    Uses correct relative links for root (Home) and pages in /pages/.
+    """
     pages = {
-        "🏠 Home": "Home",
+        "🏠 Home": "./Home.py",  # Root file (entrypoint)
         "🧠 Research": "pages/Research_and_Predictions.py",
         "📅 Upcoming": "pages/Upcoming_Projections.py",
         "🟢 Live": "pages/Live_Projections.py",
         "🏁 Completed": "pages/Completed_Projections.py",
-        "⭐ Favorites": "pages/Favorite_Players.py"
+        "⭐ Favorites": "pages/Favorite_Players.py",
     }
+
     cols = st.columns(len(pages))
     for i, (label, path) in enumerate(pages.items()):
         is_active = current.lower() in label.lower()
