@@ -34,13 +34,13 @@ a.nav-link:hover {
     text-align: center;
     color: white;
 }
+h1, h2, h3 { color: #00FFFF; }
 </style>
 """, unsafe_allow_html=True)
 
 # ---------------------- NAVIGATION ----------------------
 st.title("🏀 NBA AI Projection Dashboard")
 
-# Clean Streamlit-compatible internal routing (no HTML hrefs)
 col1, col2, col3, col4, col5 = st.columns(5)
 pages = {
     "🧠 Research": "Research_and_Predictions",
@@ -49,15 +49,17 @@ pages = {
     "🏁 Completed": "Completed_Projections",
     "⭐ Favorites": "Favorite_Players"
 }
-
 for i, (label, page) in enumerate(pages.items()):
     with [col1, col2, col3, col4, col5][i]:
-        if st.button(label):
-            st.switch_page(f"pages/{page}.py")
+        st.markdown(
+            f"<a class='nav-link' href='/pages/{page}' target='_self'>{label}</a>",
+            unsafe_allow_html=True
+        )
 
 st.markdown("---")
 
-# ---------------------- DATA HELPERS ----------------------
+# ---------------------- HELPERS ----------------------
+@st.cache_data(ttl=60)
 def get_today_games():
     """Fetch today's NBA games from ESPN API."""
     try:
@@ -84,10 +86,11 @@ def get_today_games():
     except Exception:
         return []
 
+@st.cache_data(ttl=3600)
 def get_upcoming_games(days=3):
     """Fetch next few days' NBA games."""
     try:
-        url = f"https://site.web.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard"
+        url = "https://site.web.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard"
         r = requests.get(url, timeout=10)
         data = r.json().get("events", [])
         upcoming = []
@@ -142,7 +145,6 @@ def get_injuries():
     except Exception as e:
         st.warning(f"Injury feed error: {e}")
         return []
-
 
 # ---------------------- TODAY'S GAMES ----------------------
 today_str = dt.datetime.now().strftime("%A, %B %d, %Y")
