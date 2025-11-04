@@ -1,4 +1,5 @@
 import streamlit as st
+import os
 
 def init_page(title, icon="🏀"):
     st.set_page_config(page_title=title, page_icon=icon, layout="wide")
@@ -31,11 +32,11 @@ def apply_theme():
 
 def render_navbar(current):
     """
-    Universal navigation bar.
-    Uses correct relative links for root (Home) and pages in /pages/.
+    Universal navigation bar that automatically skips missing files.
     """
+
     pages = {
-        "🏠 Home": "./Home.py",  # Root file (entrypoint)
+        "🏠 Home": "./Home.py",
         "🧠 Research": "pages/Research_and_Predictions.py",
         "📅 Upcoming": "pages/Upcoming_Projections.py",
         "🟢 Live": "pages/Live_Projections.py",
@@ -45,6 +46,9 @@ def render_navbar(current):
 
     cols = st.columns(len(pages))
     for i, (label, path) in enumerate(pages.items()):
+        # 🔍 Skip links that don't exist
+        if not os.path.exists(path):
+            continue
         is_active = current.lower() in label.lower()
         link_class = "active-link" if is_active else "nav-link"
         with cols[i]:
