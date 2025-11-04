@@ -3,8 +3,8 @@ import requests
 import pandas as pd
 import datetime as dt
 import os
+import difflib
 
-# ---------------------- PAGE CONFIG ----------------------
 st.set_page_config(page_title="🏠 NBA AI Dashboard", layout="wide")
 
 # ---------------------- STYLES ----------------------
@@ -66,7 +66,8 @@ def get_today_games():
     try:
         url = "https://site.web.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard"
         r = requests.get(url, timeout=10)
-        games = r.json().get("events", [])
+        data = r.json()
+        games = data.get("events", [])
         results = []
         for g in games:
             comp = g.get("competitions", [{}])[0]
@@ -75,7 +76,9 @@ def get_today_games():
             away = next((t for t in teams if t.get("homeAway") == "away"), {})
             results.append({
                 "home": home.get("team", {}).get("abbreviation", ""),
+                "home_name": home.get("team", {}).get("displayName", ""),
                 "away": away.get("team", {}).get("abbreviation", ""),
+                "away_name": away.get("team", {}).get("displayName", ""),
                 "home_logo": home.get("team", {}).get("logo", ""),
                 "away_logo": away.get("team", {}).get("logo", ""),
                 "status": g.get("status", {}).get("type", {}).get("description", ""),
@@ -87,19 +90,19 @@ def get_today_games():
 
 @st.cache_data(ttl=600)
 def get_injuries():
-    """Fetch NBA injuries from ESPN API with fallback parsing."""
+    """Fetch NBA injuries from ESPN API and normalize."""
     try:
         url = "https://site.web.api.espn.com/apis/site/v2/sports/basketball/nba/injuries"
         r = requests.get(url, timeout=10)
-        if r.status_code != 200:
-            return pd.DataFrame()
         data = r.json().get("injuries", [])
         injuries = []
         for team in data:
             team_code = team.get("team", {}).get("abbreviation", "")
+            team_name = team.get("team", {}).get("displayName", "")
             for p in team.get("injuries", []):
                 injuries.append({
                     "team": team_code,
+                    "team_name": team_name,
                     "player": p.get("athlete", {}).get("displayName", ""),
                     "status": p.get("status", ""),
                     "desc": p.get("shortComment") or p.get("longComment") or p.get("details", "")
@@ -113,6 +116,8 @@ today_str = dt.datetime.now().strftime("%A, %B %d, %Y")
 st.header(f"📅 Today's NBA Games — {today_str}")
 
 today_games = get_today_games()
+inj_df = get_injuries()
+
 if not today_games:
     st.info("No games found or ESPN feed unavailable.")
 else:
@@ -128,34 +133,37 @@ else:
             if g["home_logo"]:
                 st.image(g["home_logo"], width=60)
             st.markdown(f"<div class='card'>{g['home']}</div>", unsafe_allow_html=True)
+
+        # Embed injuries under this game
+        if not inj_df.empty:
+            # Match injuries to either team by code or name similarity
+            all_team_codes = inj_df["team"].dropna().unique().tolist()
+            home_match = difflib.get_close_matches(g["home"], all_team_codes, n=1)
+            away_match = difflib.get_close_matches(g["away"], all_team_codes, n=1)
+            home_inj = inj_df[inj_df["team"].isin(home_match)]
+            away_inj = inj_df[inj_df["team"].isin(away_match)]
+
+            with st.expander(f"💉 Injury Report: {g['away_name']} vs {g['home_name']}"):
+                if home_inj.empty and away_inj.empty:
+                    st.caption("No reported injuries for this matchup.")
+                else:
+                    if not away_inj.empty:
+                        st.markdown(f"**{g['away_name']}**:")
+                        for _, row in away_inj.iterrows():
+                            st.markdown(
+                                f"- {row['player']} — {row['status']}<br><small>{row['desc']}</small>",
+                                unsafe_allow_html=True
+                            )
+                    if not home_inj.empty:
+                        st.markdown(f"**{g['home_name']}**:")
+                        for _, row in home_inj.iterrows():
+                            st.markdown(
+                                f"- {row['player']} — {row['status']}<br><small>{row['desc']}</small>",
+                                unsafe_allow_html=True
+                            )
         st.markdown("---")
 
-# ---------------------- INJURIES — TODAY'S TEAMS ONLY ----------------------
-st.header("💉 Injury Report — Teams Playing Today")
-
-inj_df = get_injuries()
-if inj_df.empty:
-    st.info("No injury data available.")
-else:
-    today_teams = {g["home"] for g in today_games} | {g["away"] for g in today_games}
-    df_today = inj_df[inj_df["team"].isin(today_teams)]
-    if df_today.empty:
-        st.info("No reported injuries for today's matchups.")
-    else:
-        for team in sorted(today_teams):
-            team_inj = df_today[df_today["team"] == team]
-            if team_inj.empty:
-                continue
-            st.markdown(f"### {team}")
-            for _, row in team_inj.iterrows():
-                st.markdown(
-                    f"**{row['player']}** — {row['status']}<br><small>{row['desc']}</small>",
-                    unsafe_allow_html=True
-                )
-        st.caption("_Updated every 10 minutes_")
-
 # ---------------------- MODEL SUMMARY ----------------------
-st.markdown("---")
 st.header("📊 Model Summary Overview")
 
 path = "saved_projections.csv"
@@ -178,6 +186,5 @@ if os.path.exists(path):
 else:
     st.info("No projections saved yet.")
 
-# ---------------------- FOOTER ----------------------
 st.markdown("---")
 st.caption(f"🕒 Data last updated: {dt.datetime.now().strftime('%I:%M %p')}")
